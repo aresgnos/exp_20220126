@@ -434,8 +434,6 @@ router.delete('/deletereply', async function(req, res, next) {
 
 
 
-
-
 // localhost:3000/board/b1
 router.get('/b1', function(req, res, next) {
     res.send('respond with a resource');
