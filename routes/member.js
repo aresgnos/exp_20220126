@@ -173,6 +173,7 @@ router.delete('/delete', checkToken, async function(req, res, next) {
 // 로그인 post
 // localhost:3000/member/select
 // 이메일, 암호  => 현시점에 생성된 토큰을 전송
+// post는 body
 router.post('/select', async function(req, res, next) {
   try {
     // 1. 전송값 받기(이메일, 암호)
@@ -212,6 +213,8 @@ router.post('/select', async function(req, res, next) {
 // 이메일 중간확인 get
 // 이메일 => 결과
 // localhost:3000/member/emailcheck?email=a@a.com
+// get은 query
+// url 뒤에 물음표로 오는 것들은 query
 router.get('/emailcheck', async function(req, res, next) {
   try{
     // 1. db연결, db선택, 컬렉션선택
