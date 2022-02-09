@@ -193,6 +193,7 @@ router.post('/select', async function(req, res, next) {
       _id : email, pw : hashPassword    
     });
 
+    // 토큰 만드는 부분
     if(result !== null) { //로그인 가능
       const token = jwt.sign(
         { uid : email, uname : result.name }, // 토큰에 포함할 내용들...

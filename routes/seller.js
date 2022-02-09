@@ -26,19 +26,51 @@ const upload = multer({Storage:multer.memoryStorage()});
 
 
 // 물품 1개 조회 (물품 코드가 전달되면)
-// localhost:3000/seller/selectone
+// localhost:3000/seller/selectone?code=4056
 router.get('/selectone', checkToken, async function(req, res, next) {
     try {
-
-        const code = req.body.code;
-        console.log(code);
+        // 키가 uid인 것 = 로그인에서 토큰 생성시 사용했던 키 정보
+        const email = req.body.uid;
+        const code = Number(req.query.code);
         
         // db 연결
         const dbconn = await db.connect(dburl);
         const collection = dbconn.db(dbname).collection('item1');
 
+        // 이미지 정보 제거한 상태
+        // 1. 조회하면 나오는 키 정보 확인하고
+        const result = await collection.findOne(
+        { _id : code, seller : email }, //조건, 코드를 가지고 있고 판매자(이메일)을 가지고 있는 것.
+        { projection : { filedata:0, filename:0, filetype:0, filesize:0 }}
+        );
 
+        // 임의로 imageUrl 키를 만듦
+        // 2. 저 위에서(변수에서) 없는 키를 넣어서 추가해야함
+        // 안그러면 원래 있었던 키의 내용이 수정됨.
+        result['imageUrl'] = `/seller/image?code=${code}`;
+        // = result.imageUrl = `/seller/image?code=${code}`;
 
+        // 물품 1개를 조회할 때 서브 이미지의 정보도 같이 전송하는 부분
+        const collection1 = dbconn.db(dbname).collection('itemimg1');
+
+        const result1 = await collection1.find(
+            { itemcode : code },
+            { projection : { _id:1 } }
+        ).sort({_id:1}).toArray();
+
+        // 수동으로 서브이미지 기본키(PK)정보를 저장함.
+        // result1 => [{"_id":10006},{"_id":10007},{"_id":10008}]
+        let arr1 = [];
+        for(let i=0;i<result1.length; i++){
+            arr1.push({
+                imageUrl : `/seller/image1?code=${result1[i]._id}`
+            }); // result1은 서브이미지 url을 만들어주기 위한 용도
+        } 
+        
+        result['subImage'] = arr1;
+
+        console.log(result);
+        return res.send({status : 200, result:result});
 
     }
     catch(e) {
@@ -50,13 +82,188 @@ router.get('/selectone', checkToken, async function(req, res, next) {
 
 // 물품 전체 조회 (판매자 토큰에 해당하는 것만)
 // localhost:3000/seller/selectlist
+router.get('/selectlist', checkToken, async function(req, res, next) {
+    try {
+        const email = req.body.uid;
 
-// 물품 이미지 표시 (물품코드가 전달 되면 이미지 표시)
-// localhost:3000/seller/image?code=111
+        // db 연결
+        const dbconn = await db.connect(dburl);
+        const collection = dbconn.db(dbname).collection('item1');
 
-// 물품 번호 n개에 해당하는 항목 조회 (물품코드 배열로 전달)
+        // 조회하면 나오는 키 정보
+        const result = await collection.find(
+            { seller : email }, //조건
+            { projection : { filedata:0, filename:0, filetype:0, filesize:0 }}
+            ).sort( {name:1} ).toArray(); // 오름차순 정렬
+
+            // result => 목록으로 옴 [ {result[0]}, {result[1]}, {result[2]} ]
+            for(let i=0;i<result.length;i++){
+                result[i]['imageUrl'] = `/seller/image?code=${result[i]._id}`;
+            }
+
+        console.log(result);
+        return res.send({status : 200, result:result});
+    }
+    catch(e) {
+        console.error(e);
+        return res.send({status : -1, message:e});
+    }
+});
+
+
+// 처음에 접근할 때는
+// console.log(req)해보고 query인지 body인지 구분
+// get => req.query => URL에 정보가 포함됨(되도록이면 GET)
+// post => req.body => URL에 정보가 없으면
+// put
+// delete
+// 물품 n개 조회 (물품코드 배열로 전달)
 // localhost:3000/seller/selectcode
 // {code : [1012, 1013]}
+router.get('/selectcode', async function(req, res, next) {
+    try {
+        // query로 전달되는 값을 변수로 저장(타입이 문자임)
+        // const는 변경할 수 없음
+        let code = req.query.c
+
+        // 반복문을 통해서 문자를 숫자로 변경(n개)
+        for(let i=0; i<code.length;i++){
+            code[i] = Number(code[i]);
+        }
+        console.log(code);
+
+        // db 연결
+        const dbconn = await db.connect(dburl);
+        const collection = dbconn.db(dbname).collection('item1');
+ 
+        // 조회하면 나오는 키 정보
+        const result = await collection.find(
+            { _id : { $in : code } }, //조건, _id를 기준으로 code안에 있는 것만 가져오기
+            { projection : { filedata:0, filename:0, filetype:0, filesize:0 }}
+        ).sort( {name:1} ).toArray();
+
+        for(let i=0; i<result.length;i++){
+            result['imageUrl'] = `/seller/image?code=${result[i]._id}`;
+        }
+
+        console.log(result);
+        return res.send({status : 200, result:result});
+    }
+    catch(e) {
+        console.error(e);
+        return res.send({status : -1, message:e});
+    }
+});
+
+
+// 서브이미지 등록하기(n개)
+// 물품에 따라서 개수가 다르다.
+// 게시판 원본글(게시글번호(기본키), 1개)-----(N)원본글에 다는 댓글(원본 게시글 번호 필요)
+// = 물품(물품번호(기본키),1개)------(N)서브이미지(원본 물품 번호 필요)
+// localhost:3000/seller/subimage
+router.post('/subimage', upload.array("image"), checkToken, 
+            async function(req, res, next) {
+    try {
+        const code = Number(req.body.code); // 원본 물품번호
+        // 이미지는 콘솔에 [ {}, {}, {} ] 이런 형식으로 온다.
+        // console.log(req.files);
+
+        // 시퀀스를 가져오기 위한 db연결
+        const dbconn = await db.connect(dburl);
+        const collection = dbconn.db(dbname).collection('sequence');
+
+        let arr = []
+        for(let i=0;i<req.files.length;i++){
+            const result = await collection.findOneAndUpdate(
+                { _id : 'SEQ_ITEMIMG1_NO' }, //조건
+                { $inc : { seq :1 } } // 1증가
+            );
+            arr.push({
+                _id : result.value.seq, // PK 기본키
+                filename : req.files[i].originalname,
+                filedata : req.files[i].buffer,
+                filetype : req.files[i].mimetype,
+                filesize : req.files[i].size,
+                itemcode : code, // FK 외래키 물품코드
+                idx : (i+1), // 서브 이미지의 등록하는 순서
+                regdate : new Date(),
+            });
+        }
+        // [{},{},{}] => insertMany(arr) 
+        const collection1 = dbconn.db(dbname).collection('itemimg1');
+        const result1 = await collection1.insertMany(arr);
+        console.log(result1);
+        if(result1.insertedCount === req.files.length){
+            return res.send({status : 200});
+        }
+        return res.send({status : 0});
+
+    }
+    catch(e) {
+        console.error(e);
+        return res.send({status : -1, message:e});
+    }
+});
+
+
+// 물품 이미지 표시 (물품코드가 전달 되면 이미지 표시)
+// 대표 이미지를 가져옴 (item1 컬렉션에서 코드로)
+// localhost:3000/seller/image?code=111
+router.get('/image', async function(req, res, next) {
+    try {
+        const code = Number(req.query.code);
+
+        // db 연결
+        const dbconn = await db.connect(dburl);
+        const collection = dbconn.db(dbname).collection('item1');
+
+        // 조회하면 나오는 키 정보
+        const result = await collection.findOne(
+            { _id : code }, //조건
+            { projection : { filedata:1, filename:1, filetype:1, filesize:1 }}
+        );
+
+        console.log(result);
+        
+        // 파일 타입을 바꿔줘야함
+        res.contentType(result.filetype);
+        return res.send(result.filedata.buffer);
+    }
+    catch(e) {
+        console.error(e);
+        return res.send({status : -1, message:e});
+    }
+});
+
+
+// 서브 이미지를 표시
+// 서브 이미지를 가져옴 (itemimg1 컬렉션에서 코드로)
+// localhost:3000/seller/image1?code=111
+router.get('/image1', async function(req, res, next) {
+    try {
+        const code = Number(req.query.code);
+
+        // db 연결
+        const dbconn = await db.connect(dburl);
+        const collection = dbconn.db(dbname).collection('itemimg1');
+
+        // 조회하면 나오는 키 정보
+        const result = await collection.findOne(
+            { _id : code }, //조건
+            { projection : { filedata:1, filename:1, filetype:1, filesize:1 }}
+        );
+
+        console.log(result);
+        
+        // 파일 타입을 바꿔줘야함
+        res.contentType(result.filetype);
+        return res.send(result.filedata.buffer);
+    }
+    catch(e) {
+        console.error(e);
+        return res.send({status : -1, message:e});
+    }
+});
 
 
 // 물품 일괄 수정
@@ -65,7 +272,7 @@ router.put('/update', checkToken, upload.array("image"),
          async function(req, res, next) {
     try {
         console.log(req.body);
-
+        
         // db연결
         const dbconn = await db.connect(dburl);
         const collection = dbconn.db(dbname).collection('item1');
@@ -77,7 +284,7 @@ router.put('/update', checkToken, upload.array("image"),
         for(let i=0; i<req.body.title.length; i++){
             let obj = { //4개의 키만
                 name        : req.body.title[i],
-                price       : req.body.price[i],
+                price       : req.body.price[i], 
                 quantity    : req.body.quantity[i],
                 content     : req.body.content[i],
             };
@@ -91,7 +298,7 @@ router.put('/update', checkToken, upload.array("image"),
             }
 
             const result = await collection.updateOne(
-                { _id  : req.body.code[i] }, //조건
+                { _id  : Number(req.body.code[i]) }, //조건
                 { $set : obj } //변경내용
             );
             console.log(result);
@@ -142,14 +349,18 @@ router.delete('/delete', checkToken, async function(req, res, next) {
     });
 
 
-
 // 물품 등록
 // 1. 로그인을 해야함 2. 이미지를 포함한 n개의 물품을 넣어야함.
-// localhost:3000/seller/insert
+// localhost:3000         
 // 로그인을 한 사용자가 판매자
 router.post('/insert', 
         upload.array("image"), checkToken, async function(req, res, next) {
     try {
+
+        console.log(req.body);
+        // 전송1, body   => {  title:[1,2], price:[3,4] }
+        // 전송2, files  => [  {orginalname...  }, {  } ]
+        // 최종,  arr    => [  {title , ... orginalname  }, {  } ]
 
         const dbconn = await db.connect(dburl);
         const collection = dbconn.db(dbname).collection('sequence');
@@ -195,9 +406,12 @@ router.post('/insert',
         // console.log(req.files); // 물품 대표 이미지
         // res.send({status:200});
     }
-    catch(err){
+    catch(e) {
         console.error(e);
+        return res.send({status : -1, message:e});
     }
 });
+
+
 
 module.exports = router;
