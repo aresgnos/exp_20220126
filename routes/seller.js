@@ -94,12 +94,13 @@ router.get('/selectlist', checkToken, async function(req, res, next) {
         const result = await collection.find(
             { seller : email }, //조건
             { projection : { filedata:0, filename:0, filetype:0, filesize:0 }}
-            ).sort( {name:1} ).toArray(); // 오름차순 정렬
+            ).sort( { _id:-1 } ).toArray(); // 오름차순 정렬
 
             // result => 목록으로 옴 [ {result[0]}, {result[1]}, {result[2]} ]
             for(let i=0;i<result.length;i++){
-                result[i]['imageUrl'] = `/seller/image?code=${result[i]._id}`;
-            }
+                result[i]['imageUrl'] 
+                = `/seller/image?code=${result[i]._id}&ts=${new Date().getTime()}`;
+            } //&ts=${new Date().getTime() => 시간을 추가해서 변화를 주어 이미지가 수정되도록함. url을 다르게 인식하게함.
 
         console.log(result);
         return res.send({status : 200, result:result});
@@ -271,7 +272,14 @@ router.get('/image1', async function(req, res, next) {
 router.put('/update', checkToken, upload.array("image"),
          async function(req, res, next) {
     try {
+        
+        // 2개이상 { code : [1010,1011], title ['a','b']}
+        // 1개 { code : 1016, title : 'a'}
         console.log(req.body);
+
+        // 1개 [ {} ]
+        // 2개 [ {}, {} ] 이 형태
+        console.log(req.files); 
         
         // db연결
         const dbconn = await db.connect(dburl);
@@ -280,12 +288,14 @@ router.put('/update', checkToken, upload.array("image"),
         // req.body  => { code : [1016,1017], title : ['a','b'] }
         // req.files => [ {}, {}]
 
+        // req.body.title이 배열인가요?, 2개 이상인가요를 묻는 것(if문)
+        if( Array.isArray(req.body.title) ) {
         let cnt = 0; //실제적으로 변경한 개수를 누적할 변수
         for(let i=0; i<req.body.title.length; i++){
             let obj = { //4개의 키만
                 name        : req.body.title[i],
-                price       : req.body.price[i], 
-                quantity    : req.body.quantity[i],
+                price       : Number(req.body.price[i]), 
+                quantity    : Number(req.body.quantity[i]),
                 content     : req.body.content[i],
             };
 
@@ -294,7 +304,7 @@ router.put('/update', checkToken, upload.array("image"),
                 obj['filename'] = req.files[i].originalname;
                 obj['filedata'] = req.files[i].buffer;
                 obj['filetype'] = req.files[i].mimetype;
-                obj['filesize'] = req.files[i].size;
+                obj['filesize'] = Number(req.files[i].size);
             }
 
             const result = await collection.updateOne(
@@ -311,6 +321,32 @@ router.put('/update', checkToken, upload.array("image"),
         if(cnt === req.body.title.length){
             return res.send({status : 200});
         }
+    }
+    else { 
+        let obj = { //4개의 키만
+            name        : req.body.title,
+            price       : Number(req.body.price), 
+            quantity    : Number(req.body.quantity),
+            content     : req.body.content,
+        };
+
+        // 이미지 첨부하면 키를 4개더 추가 8개
+        if ( typeof req.files[0] !== 'undefined') {
+            obj['filename'] = req.files[0].originalname;
+            obj['filedata'] = req.files[0].buffer;
+            obj['filetype'] = req.files[0].mimetype;
+            obj['filesize'] = req.files[0].size;
+        }
+
+        const result = await collection.updateOne(
+            { _id  : Number(req.body.code) }, //조건
+            { $set : obj } //변경내용
+        );
+
+        if(result.modifiedCount === 1){
+            return res.send({status : 200});
+        }
+    }
 
         return res.send({status : 0});
     }
@@ -326,6 +362,8 @@ router.put('/update', checkToken, upload.array("image"),
 router.delete('/delete', checkToken, async function(req, res, next) {
     try {
         // {"code":[1016,1017,1018]}
+        // 원래 하나는 {"code":1016}
+        // 하나를 보낼 때도 {"code":[1016]}
         const code = req.body.code;
         console.log(code);
 
@@ -411,7 +449,6 @@ router.post('/insert',
         return res.send({status : -1, message:e});
     }
 });
-
 
 
 module.exports = router;
