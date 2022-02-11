@@ -10,6 +10,7 @@ var boardRouter = require('./routes/board');
 var memberRouter = require('./routes/member');
 var itemRouter = require('./routes/item');
 var sellerRouter = require('./routes/seller');
+var shopRouter = require('./routes/shop');
 
 
 var app = express();
@@ -30,6 +31,7 @@ app.use('/board', boardRouter);
 app.use('/member', memberRouter);
 app.use('/item', itemRouter);
 app.use('/seller', sellerRouter);
+app.use('/shop', shopRouter);
 
 
 // catch 404 and forward to error handler
