@@ -102,33 +102,60 @@ router.get('/selectone', async function(req, res, next) {
 // 데이터 자체를 가져오는게 아니라 외래키(변하지 않는 정보, 한 곳에 있는 정보)를 땡겨와서 모은다.
 // 프론트에 전달할 것 = 로그인 사용자의 토큰, 물품번호, 주문수량
 router.post('/order', checkToken, async function(req, res, next) {
-    try {
-
+    try{
         const dbconn = await db.connect(dburl);
         const collection = dbconn.db(dbname).collection('sequence');
-
         const result = await collection.findOneAndUpdate(
             { _id : 'SEQ_ORDER1_NO' }, // 가지고 오기 위한 조건
-            { $inc : { seq:1 } } // seq 값을 1증가시킴
+            { $inc : {seq : 1 } }      // seq값을 1증가씨킴
         );
 
         const obj = {
-            _id : result.value.seq, //주문번호
-            itemcode : Number(req.body.itemcode), //물품번호
-            ordercnt : Number(req.body.ordercnt), //주문수량
-            orderid : req.body.uid, //주문자(토큰에서)
-            orderdate : new Date(), //(1000*60*60*9), //주문일자 9시간 더하기
-            orderstep : 1, //주문
+            _id         : result.value.seq, //주문번호
+            itemcode    : Number(req.body.itemcode), //물품번호
+            ordercnt    : Number(req.body.ordercnt), //주문수량
+            orderid     : req.body.uid,     // 주문자(토큰에서)
+            orderdate   : new Date(), // + (1000 * 60 * 60 * 9), //9시간 더하기
+            orderstep   : 101,
         }
 
         const collection1 = dbconn.db(dbname).collection('order1');
         const result1 = await collection1.insertOne(obj);
-        console.log(result1);
-        if(result1.insertedId === obj._id ) {
+        if(result1.insertedId === obj._id){
             return res.send({status:200});
         }
         return res.send({status:0});
     }
+    catch(e){
+        console.error(e);
+        return res.send({status:-1, message:e});
+    }
+});
+
+
+// 주문 취소
+// localhost:3000/shop/orderdelete
+router.delete('/orderdelete', checkToken, async function(req, res, next) {
+    try {
+
+        const code = req.body.chk;
+        console.log(code);
+
+        const dbconn = await db.connect(dburl);
+        const collection = dbconn.db(dbname).collection('order1');
+
+        // { $in : [1, 2, 3, 4] } 포함된 항목
+        const result = await collection.deleteMany(
+            { _id : { $in : code}, orderid:req.body.uid }
+        );
+
+        console.log(result);
+        if(result.deletedCount === code.length){
+        return res.send({status:200});
+        }
+        return res.send({status:0});
+    }
+
     catch(e) {
         console.error(e);
         return res.send({status : -1, message:e});
@@ -235,15 +262,15 @@ router.get('/orderlist', checkToken, async function(req, res, next) {
         ).toArray();
 
         for(let i=0; i<result.length; i++){
-            const collection1 = dbconn.db(dbname).collection('order1');
+            const collection1 = dbconn.db(dbname).collection('item1');
 
-            const result1 = await collection1.find(
+            const result1 = await collection1.findOne(
                 { _id : result[i].itemcode }, //조건
                 { projection : { name:1, price:1 }}
             );
 
-            result[i]['itemname'] = result1['itemname'];
-            result[i]['itemprice'] = result1['itemprice'];
+            result[i]['itemname'] = result1['name'];
+            result[i]['itemprice'] = result1['price'];
         }
 
         console.log(result);
