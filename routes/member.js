@@ -200,7 +200,7 @@ router.post('/select', async function(req, res, next) {
         jwtKey,           // 토큰생성시 키값
         jwtOptions,       // 토큰생성 옵션
       );
-      return res.send({status : 200, token:token});
+      return res.send({status : 200, token:token, uid:email, uname:result.name}); // 이메일, 이름 추가
     }
 
     return res.send({status : 0});
@@ -215,7 +215,7 @@ router.post('/select', async function(req, res, next) {
 // localhost:3000/member/validation
 router.get('/validation', checkToken, async function(req, res, next) {
   try{
-    return res.send({status : 200, email : req.body.uid, name : req.body.uname});
+    return res.send({status : 200, uid : req.body.uid, uname : req.body.uname});
   }
   catch(e){
     console.error(e);
