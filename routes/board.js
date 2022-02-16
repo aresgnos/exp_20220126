@@ -122,7 +122,7 @@ router.get('/select', async function(req, res, next) {
         // find().toArray()로 사용
         // abc면 a, b, c로 다 검색 가능 => new RegEXP(text, 'a')
         const result = await collection.find(
-            { title : new RegExp(text, 'i')},
+            { title : new RegExp(text, 'i')}, //검색어
             { projection : { _id:1, title:1, writer:1, hit:1, regdate:1 } }   
         )
             .sort({_id : -1})

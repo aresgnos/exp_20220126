@@ -181,14 +181,29 @@ router.get('/groupitem', checkToken, async function(req, res, next) {
 
 // 시간대별 주문수량
 // localhost:3000/seller/grouphour
+// 판매자의 토큰이 전송되면 검증 후에 이메일을 꺼냄
+// item1 컬렉션에 판매자의 상품코드 꺼내고
+// order1에 상품코드가 일치하는 것만 가져와서 group 처리
 router.get('/grouphour', checkToken, async function(req, res, next) {
     try {
         
+        const email = req.body.uid;
         const dbconn = await db.connect(dburl);
-        const collection = dbconn.db(dbname).collection('order1');
 
+        // item에서 판매자의 email과 같은 물품코드 꺼내기 =>[1,2,3,4] 같은 배열로 나옴
+        const collection = dbconn.db(dbname).collection('item1');
+        // 고유값 꺼내기 distinct(고유한값 컬럼명, 조건)
+        const result = await collection.distinct("_id", 
+                {seller  : email});
+        
+        const collection1 = dbconn.db(dbname).collection('order1');
         // 그룹별 통계 aggregate
-        const result = await collection.aggregate([
+        const result1 = await collection1.aggregate([
+            {
+                $match : {
+                    itemcode : {$in: result}
+                }
+            },
             {
                 $project : { //가져올 항목(물품코드, 주문수량)
                     orderdate : 1, //주문일자
@@ -202,13 +217,18 @@ router.get('/grouphour', checkToken, async function(req, res, next) {
                 $group :{
                     _id : '$hour', // 그룹할 항목
                     count : {
-                        $sum : '$ordercnt'
+                        $sum : '$ordercnt' //$sum = 합쳐지는 조건
                     }
                 }
             },
+            {
+                $sort : {
+                    _id : 1 // 정렬
+                }
+            }
         ]).toArray();
     
-        return res.send({status:200, result:result});
+        return res.send({status:200, result:result1});
     }    
     catch(e) {
         console.error(e);
