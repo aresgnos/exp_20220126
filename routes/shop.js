@@ -97,7 +97,6 @@ router.get('/selectone', async function(req, res, next) {
 // orderdate : 주문일자
 // orderstep : 0(장바구니), 1(주문), 2(결제), 3(배송중), 4(배송완료)
 
-// 주문목록(조인) = member1+ item1 + order1 컬렉션이 합쳐진 내용
 // 조인 = 여러개의 컬렉션의 합쳐진 것
 // 데이터 자체를 가져오는게 아니라 외래키(변하지 않는 정보, 한 곳에 있는 정보)를 땡겨와서 모은다.
 // 프론트에 전달할 것 = 로그인 사용자의 토큰, 물품번호, 주문수량
@@ -165,6 +164,10 @@ router.delete('/orderdelete', checkToken, async function(req, res, next) {
 
 // 주문 목록 (구매자가 주문한 목록)
 // localhost:3000/shop/orderlist
+// item1 + order1 컬렉션이 합쳐진 내용
+// 조인 = 여러개의 컬렉션의 합쳐진 것
+// 데이터 자체를 가져오는게 아니라 외래키(변하지 않는 정보, 한 곳에 있는 정보)를 땡겨와서 모은다.
+// 프론트에 전달할 것 = 로그인 사용자의 토큰, 물품번호, 주문수량
 router.get('/orderlist', checkToken, async function(req, res, next) {
     try {
         const email = req.body.uid;
