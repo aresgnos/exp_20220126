@@ -250,7 +250,7 @@ router.put('/updatehit', async function(req, res, next) {
         // 3. 조회수 증가
         const result = await collection.updateOne(
         { _id : no }, // 조건
-        { $inc : { hit : 1 } } // 실제 수행할 내용, $inc = 증가시키는 명령어
+        { $inc : { hit : 2 } } // 실제 수행할 내용, $inc = 증가시키는 명령어
         );
         
         // 4. db 수행 후 반환되는 결과 값에 따라 적절한 값을 전달
