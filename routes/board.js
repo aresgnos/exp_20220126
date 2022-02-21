@@ -79,6 +79,50 @@ router.post('/insert', upload.single("image"), async function(req, res, next) {
     }
 });
 
+
+// CKeditor 내용 저장
+// localhost:3000/board/ckeditor_save
+router.post('/ckeditor_save', async function(req, res, next) {
+    console.log(req.body.content);
+
+    return res.send({status : 200});
+
+});
+
+
+// CKeditor에서 첨부하는 이미지만 보관
+// localhost:3000/board/ckeditor_image
+router.post('/ckeditor_image', upload.single("image"), async function(req, res, next) {
+    try{
+        const dbconn = await db.connect(dburl);
+        const collection = dbconn.db(dbname).collection('sequence');
+        const result = await collection.findOneAndUpdate(
+            { _id : 'SEQ_BOARD1_NO' }, 
+            { $inc : {seq : 1} } 
+        );
+
+        const obj = {
+            _id : result.value.seq, 
+            filename : req.file.originalname,
+            filedata : req.file.buffer,
+            filetype : req.file.mimetype,
+            filesize : req.file.size
+        };
+
+        const collection1 = dbconn.db(dbname).collection('boardimage1');
+        const result1 = await collection1.insertOne(obj);
+        // 결과 확인
+        if(result1.insertedId === result.value.seq) {
+            return res.send({status : 200});
+        }
+        return res.send({status : 0});
+    }
+    catch(e) {
+        console.error(e);
+        res.send({status : -1, message:e});
+    }
+});
+
 // 게시물 이미지 조회
 // localhost:3000/board/image?_id=110
 // 출력하고자하는 이미지의 게시물 번호를 전달

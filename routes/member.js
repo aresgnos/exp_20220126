@@ -287,10 +287,12 @@ router.post('/insertaddr', checkToken, async function(req, res, next) {
       const collection1 = dbconn.db(dbname).collection('memberaddr1');
       const result1 = await collection1.insertOne(obj);
       console.log(result1);
-      if(result1.insertedId === obj._id){
-        return res.send({status:200});
+
+      // 결과 확인
+      if(result1.insertedId === result.value.seq) {
+        return res.send({status : 200});
       }
-      return res.send({status:0});
+      return res.send({status : 0});
     }
   catch(e){
     console.error(e);
@@ -305,22 +307,28 @@ router.get('/selectaddr', checkToken, async function(req, res, next) {
   try{
     
     const email = req.body.uid;
-    console.log(email);
 
     const dbconn = await db.connect(dburl);
     const collection = dbconn.db(dbname).collection('memberaddr1');
 
     const result = await collection.find(
-      { memberid : email }
-    ).toArray();
+      { memberid : email },
+      { projection : {memberid :0}}
+    ).sort({_id:1}).toArray(); // 오름차순 정렬
 
-    let code = [];
-
+    // 대표 주소 (chk:1인 것 찾기)
+    // 예를 들면 이렇게 옴 [ {chk:1}, {chk:0}, {chk:0}] 여기서 chk:1인 것 찾기
+    // sum은 더한 값에 또 더함 (누적)
+    let sum=0;
     for(let i=0; i<result.length; i++){
-      code.push(result[i]._id)
+      sum = sum + Number(result[i].chk);
+      // = sum += Number(result[i].chk);
+    }
+    if(sum <= 0) { //체크된 것이 없으면
+      result[0].chk = 1;
     }
 
-    return res.send({status:200});
+    res.send({status:200, result:result})
   }
   catch(e){
     console.error(e);
@@ -334,14 +342,15 @@ router.get('/selectaddr', checkToken, async function(req, res, next) {
 router.delete('/deleteaddr', checkToken, async function(req, res, next) {
   try{
 
-    const code = req.body.code;
+    const email = req.body.uid; // 토큰에서 이메일 꺼내기
+    const no = req.body.no; // 삭제할 _id값
 
     const dbconn = await db.connect(dburl);
     const collection = dbconn.db(dbname).collection('memberaddr1');
 
     const result = await collection.deleteOne(
-      { _id : {$in : code} }
-    )
+      { _id : no, memberid:email }
+    );
 
     console.log(result);
 
@@ -362,12 +371,17 @@ router.delete('/deleteaddr', checkToken, async function(req, res, next) {
 router.put('/updateaddr', checkToken, async function(req, res, next) {
   try{
     
+    // 받아와야할 값
+    const email = req.body.uid; // 토큰에서 이메일 꺼내기
+    const no = req.body.no; // 수정할 _id값
+    const address = req.body.address; // 수정할 내용
+
     const dbconn = await db.connect(dburl);
     const collection = dbconn.db(dbname).collection('memberaddr1');
 
     const result = await collection.updateOne(
-      { _id : req.body.uid },
-      { $set : { address : req.body.address } }
+      { _id : no,  memberid :  email },
+      { $set : { address : address } }
     );
     console.log(result);
 
@@ -389,13 +403,38 @@ router.put('/updateaddr', checkToken, async function(req, res, next) {
 router.put('/updatechkaddr', checkToken, async function(req, res, next) {
   try{
 
-  }
-  catch(e){
-    console.error(e);
-    res.send({status : -1, message:e});
-  }
-});
+    const email = req.body.uid;// 토큰에서 이메일 꺼내기
+    const no = req.body.no; // _id값
 
+    const dbconn = await db.connect(dburl);
+    const collection = dbconn.db(dbname).collection('memberaddr1');
+
+    // 전체적으로 chk를 0으로 초기화, 전체적으로 초기화시키기 때문에 _id:no(x)
+    const result = await collection.updateMany(
+      { memberid :  email },
+      { $set : {chk : 0} }
+    );
+
+      console.log(result);
+
+      if(result.matchedCount > 0){
+        // 1개만 chk 1로 바꿈
+        const result1 = await collection.updateOne(
+          { _id : no,  memberid :  email },
+          { $set : {chk : 1} }
+        );
+
+        if(result1.modifiedCount === 1){
+          return res.send({status : 200});
+        }
+      }
+      return res.send({status : 0});
+    }
+    catch(e) {
+      console.error(e);
+      res.send({status : -1, message:e});
+    }  
+  });
 
 
 module.exports = router;
