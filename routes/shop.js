@@ -106,7 +106,7 @@ router.post('/order', checkToken, async function(req, res, next) {
         const collection = dbconn.db(dbname).collection('sequence');
         const result = await collection.findOneAndUpdate(
             { _id : 'SEQ_ORDER1_NO' }, // 가지고 오기 위한 조건
-            { $inc : {seq : 1 } }      // seq값을 1증가씨킴
+            { $inc : {seq : 1 } }      // seq값을 1증가시킴
         );
 
         const obj = {

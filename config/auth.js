@@ -28,8 +28,10 @@ const self = module.exports = {
             }
 
             // 추출이 가능하다면 req.body에 임의의 키값으로 추가함.
+            // 로그인에서 토큰에 포함된 정보를 복원시킴
             req.body.uid   = user.uid;
             req.body.uname = user.uname;
+            req.body.urole = user.urole;
 
             // member.js의 router가 동작됨
             next();

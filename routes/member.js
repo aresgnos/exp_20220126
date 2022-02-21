@@ -35,7 +35,8 @@ router.post('/insert', async function(req, res, next) {
       _id     : req.body.email,
       pw      : hashPassword,
       name    : req.body.name,
-      regdate : new Date()
+      regdate : new Date(),
+      role    : req.body.role
     }
 
     // 2. db연결, db선택, 컬렉션선택
@@ -196,11 +197,18 @@ router.post('/select', async function(req, res, next) {
     // 토큰 만드는 부분
     if(result !== null) { //로그인 가능
       const token = jwt.sign(
-        { uid : email, uname : result.name }, // 토큰에 포함할 내용들...
+        { uid : email, 
+          uname : result.name, 
+          urole : result.role  }, // 세션 = 토큰에 포함할 내용들(아이디, 이름, 권한)
         jwtKey,           // 토큰생성시 키값
         jwtOptions,       // 토큰생성 옵션
       );
-      return res.send({status : 200, token:token, uid:email, uname:result.name}); // 이메일, 이름 추가
+
+      // 로그인시에 토큰만 전송
+      return res.send({
+        status : 200, 
+        token : token,
+      });
     }
 
     return res.send({status : 0});
@@ -211,11 +219,16 @@ router.post('/select', async function(req, res, next) {
   }
 });
 
-// 토큰이 오면 이메일 주소를 전송함
+// 토큰이 오면 정보를 전송
 // localhost:3000/member/validation
 router.get('/validation', checkToken, async function(req, res, next) {
   try{
-    return res.send({status : 200, uid : req.body.uid, uname : req.body.uname});
+    return res.send({
+      status : 200, 
+      uid : req.body.uid, 
+      uname : req.body.uname, 
+      urole : req.body.urole
+    });
   }
   catch(e){
     console.error(e);
@@ -241,6 +254,141 @@ router.get('/emailcheck', async function(req, res, next) {
     });
 
     return res.send({status : 200, result : result});
+  }
+  catch(e){
+    console.error(e);
+    res.send({status : -1, message:e});
+  }
+});
+
+
+// 주소 등록
+// localhost:3000/member/insertaddr
+// 프론트에서는 토큰, 입력할 주소가 와야함
+router.post('/insertaddr', checkToken, async function(req, res, next) {
+  try{
+
+    const dbconn = await db.connect(dburl);
+    const collection = dbconn.db(dbname).collection('sequence');
+    const result = await collection.findOneAndUpdate(
+        { _id : 'SEQ_MEMBERADDR1_NO' }, // 가지고 오기 위한 조건
+        { $inc : {seq : 1 } }      // seq값을 1증가시킴
+    );
+
+    const obj = {
+        _id : result.value.seq,
+        address : req.body.address, // 주소 정보
+        memberid : req.body.uid, // 토큰에서 꺼낸 정보
+        chk : 0, // 대표주소 설정 (숫자가 클수록 우선순위 부여=대표주소)
+        regdate : new Date()
+      }
+      
+      // 컬렉션명 : memberaddr1
+      const collection1 = dbconn.db(dbname).collection('memberaddr1');
+      const result1 = await collection1.insertOne(obj);
+      console.log(result1);
+      if(result1.insertedId === obj._id){
+        return res.send({status:200});
+      }
+      return res.send({status:0});
+    }
+  catch(e){
+    console.error(e);
+    res.send({status : -1, message:e});
+  }
+});
+
+
+// 주소 목록
+// localhost:3000/member/selectaddr
+router.get('/selectaddr', checkToken, async function(req, res, next) {
+  try{
+    
+    const email = req.body.uid;
+    console.log(email);
+
+    const dbconn = await db.connect(dburl);
+    const collection = dbconn.db(dbname).collection('memberaddr1');
+
+    const result = await collection.find(
+      { memberid : email }
+    ).toArray();
+
+    let code = [];
+
+    for(let i=0; i<result.length; i++){
+      code.push(result[i]._id)
+    }
+
+    return res.send({status:200});
+  }
+  catch(e){
+    console.error(e);
+    res.send({status : -1, message:e});
+  }
+});
+
+
+// 주소 삭제
+// localhost:3000/member/deleteaddr
+router.delete('/deleteaddr', checkToken, async function(req, res, next) {
+  try{
+
+    const code = req.body.code;
+
+    const dbconn = await db.connect(dburl);
+    const collection = dbconn.db(dbname).collection('memberaddr1');
+
+    const result = await collection.deleteOne(
+      { _id : {$in : code} }
+    )
+
+    console.log(result);
+
+    if(result.deletedCount === 1){
+      return res.send({status:200});
+    }
+    return res.send({status:0});
+    }
+    catch(e){
+    console.error(e);
+    res.send({status : -1, message:e});
+  }
+});
+
+
+// 주소 수정
+// localhost:3000/member/updateaddr
+router.put('/updateaddr', checkToken, async function(req, res, next) {
+  try{
+    
+    const dbconn = await db.connect(dburl);
+    const collection = dbconn.db(dbname).collection('memberaddr1');
+
+    const result = await collection.updateOne(
+      { _id : req.body.uid },
+      { $set : { address : req.body.address } }
+    );
+    console.log(result);
+
+    if(result.modifiedCount === 1){
+      return res.send({status : 200});
+    }
+    return res.send({status : 0});
+  
+  }
+  catch(e){
+    console.error(e);
+    res.send({status : -1, message:e});
+  }
+});
+
+
+// 대표 주소 설정
+// localhost:3000/member/updatechkaddr
+router.put('/updatechkaddr', checkToken, async function(req, res, next) {
+  try{
+
   }
   catch(e){
     console.error(e);
